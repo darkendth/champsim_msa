@@ -43,8 +43,8 @@ uint64_t set_timer[LLC_SETS];   //64 sets, where 1 timer is used for every set
 #define bits(x, i, l) (((x) >> (i)) & bitmask(l))
 #define SAMPLED_SET(set) (bits(set, 0 , 6) == bits(set, ((unsigned long long)log2(LLC_SETS) - 6), 6) )  //Helper function to sample 64 sets for each core
 
-int MAXARRIP,MAXBRRIP;
-
+//int MAXARRIP=8,MAXBRRIP=8;
+int32_t PARTITION_SIZE = 8;
 
 
 
@@ -84,16 +84,20 @@ uint32_t CACHE::llc_find_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, c
 {
     //Find the line with RRPV of 7 in that set
     
-    # ( cpu == current_set.cpu )
-    # 
-    
+    count = 0;
     for(uint32_t i = 0; i < LLC_WAYS; i++){
         if (cpu == block[set][i].cpu){
-            if(rrip[set][i] == MAXARRIP){ 
-                return i;
+            count++;
+        }
+    } 
+    if (count == PARTITION_SIZE){
+        for(uint32_t i = 0; i < LLC_WAYS; i++){
+            if (cpu == block[set][i].cpu){
+                if(rrip[set][i] == MAXRRIP){ 
+                    return i;
+                }
             }
         }
-    }
 
     //If no RRPV of 7, then we find next highest RRPV value (oldest cache-friendly line)
     uint32_t max_rrpv = 0;
@@ -106,6 +110,14 @@ uint32_t CACHE::llc_find_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, c
             }
         }
     }
+
+
+    }
+
+
+    
+
+    
 
 
     //Asserting that LRU victim is not -1
