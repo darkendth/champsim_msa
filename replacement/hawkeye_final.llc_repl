@@ -84,12 +84,14 @@ uint32_t CACHE::llc_find_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, c
 {
     //Find the line with RRPV of 7 in that set
     
-    count = 0;
+    int count = 0;
+    int32_t victim;
     for(uint32_t i = 0; i < LLC_WAYS; i++){
         if (cpu == block[set][i].cpu){
             count++;
         }
-    } 
+    }
+
     if (count == PARTITION_SIZE){
         for(uint32_t i = 0; i < LLC_WAYS; i++){
             if (cpu == block[set][i].cpu){
@@ -99,26 +101,60 @@ uint32_t CACHE::llc_find_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, c
             }
         }
 
-    //If no RRPV of 7, then we find next highest RRPV value (oldest cache-friendly line)
-    uint32_t max_rrpv = 0;
-    int32_t victim = -1;
-    for(uint32_t i = 0; i < LLC_WAYS; i++){
-        if (cpu == block[set][i].cpu){
-            if(rrip[set][i] >= max_rrpv){
-                max_rrpv = rrip[set][i];
-                victim = i;
+        //If no RRPV of 7, then we find next highest RRPV value (oldest cache-friendly line)
+        uint32_t max_rrpv = 0;
+        victim = -1;
+        for(uint32_t i = 0; i < LLC_WAYS; i++){
+            if (cpu == block[set][i].cpu){
+                if(rrip[set][i] >= max_rrpv){
+                    max_rrpv = rrip[set][i];
+                    victim = i;
+                }
             }
         }
     }
+    else if (count > PARTITION_SIZE){
+        for (uint32_t i = 0; i < LLC_WAYS; i++){
+            if (cpu == block[set][i].cpu){
+                if(rrip[set][i] == MAXRRIP){ 
+                    return i;
+                }
+            }            
+        }
 
-
+        //If no RRPV of 7, then we find next highest RRPV value (oldest cache-friendly line)
+        uint32_t max_rrpv = 0;
+        victim = -1;
+        for(uint32_t i = 0; i < LLC_WAYS; i++){
+            if (cpu == block[set][i].cpu){
+                if(rrip[set][i] >= max_rrpv){
+                    max_rrpv = rrip[set][i];
+                    victim = i;
+                }
+            }
+        }
     }
+    else{
+        for (uint32_t i = 0;i < LLC_WAYS; i++){
+            if (cpu != block[set][i].cpu){
+                if (rrip[set][i] == MAXRRIP){
+                    return i;
+                }
+            }
+        }
 
-
-    
-
-    
-
+        //If no RRPV of 7, then we find next highest RRPV value (oldest cache-friendly line)
+        uint32_t max_rrpv = 0;
+        victim = -1;
+        for(uint32_t i = 0; i < LLC_WAYS; i++){
+            if (cpu != block[set][i].cpu){
+                if(rrip[set][i] >= max_rrpv){
+                    max_rrpv = rrip[set][i];
+                    victim = i;
+                }
+            }
+        }
+    }
 
     //Asserting that LRU victim is not -1
     //Predictor will be trained negaively on evictions
