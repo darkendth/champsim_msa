@@ -56,6 +56,29 @@ struct OPTgen{
         }
         return cache;
     }
+
+    bool mn_is_cache(uint64_t val, uint64_t endVal, uint64_t partition_size){
+        /* modified function to resize liveness interval based on partiton size. */
+        bool cache = true;
+        unsigned int count = endVal;
+        while (count != val){
+            if(liveness_intervals[count] >= partition_size){
+                cache = false;
+                break;
+            }
+            count = (count+1) % liveness_intervals.size();
+        }
+
+        if(cache){
+            count = endVal;
+            while(count != val){
+                liveness_intervals[count]++;
+                count = (count+1) % liveness_intervals.size();
+            }
+            num_cache++;
+        }
+        return cache;
+    }
 };
 
 #endif
