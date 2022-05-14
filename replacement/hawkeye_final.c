@@ -22,7 +22,7 @@ uint32_t rrip[LLC_SETS][LLC_WAYS];
 Hawkeye_Predictor* predictor_demand;    //2K entries, 5-bit counter per each entry
 Hawkeye_Predictor* predictor_prefetch;  //2K entries, 5-bit counter per each entry
 
-// OPTgen optgen_occup_vector[LLC_SETS];   //64 vecotrs, 128 entries each
+OPTgen optgen_occup_vector[LLC_SETS];   //64 vecotrs, 128 entries each
 
 //Prefectching
 bool prefetching[LLC_SETS][LLC_WAYS];
@@ -46,10 +46,6 @@ uint64_t set_timer[LLC_SETS];   //64 sets, where 1 timer is used for every set
 //int MAXARRIP=8,MAXBRRIP=8;
 int32_t PARTITION_SIZE = 8;
 
-OPTgen optgen_occup_vectorA[LLC_SETS],optgen_occup_vectorB[LLC_SETS];
-
-
-
 
 
 
@@ -68,9 +64,7 @@ void CACHE::llc_initialize_replacement()
             prefetching[i][j] = false;
         }
         set_timer[i] = 0;
-        // optgen_occup_vector[i].init(LLC_WAYS-2);
-        optgen_occup_vectorA[i].init(LLC_WAYS-2);
-        optgen_occup_vectorB[i].init(LLC_WAYS-2);
+        optgen_occup_vector[i].init(LLC_WAYS-2);
     }
 
     cache_history_sampler.resize(SAMPLER_SETS);
@@ -221,49 +215,25 @@ void CACHE::llc_update_replacement_state(uint32_t cpu, uint32_t set, uint32_t wa
             bool isWrap = (current_time - cache_history_sampler[sample_set][sample_tag].previousVal) > OPTGEN_SIZE;
 
             //Train predictor positvely for last PC value that was prefetched
-            if ( cpu == 0 )
-            {
-                if(!isWrap && optgen_occup_vectorA[set].is_cache(currentVal, previousVal)){
-                    if(cache_history_sampler[sample_set][sample_tag].prefetching){
-                        predictor_prefetch->increase(cache_history_sampler[sample_set][sample_tag].PCval);
-                    }
-                    else{
-                        predictor_demand->increase(cache_history_sampler[sample_set][sample_tag].PCval);
-                    }
+            if(!isWrap && optgen_occup_vector[set].is_cache(currentVal, previousVal)){
+                if(cache_history_sampler[sample_set][sample_tag].prefetching){
+                    predictor_prefetch->increase(cache_history_sampler[sample_set][sample_tag].PCval);
                 }
-                //Train predictor negatively since OPT did not cache this line
                 else{
-                    if(cache_history_sampler[sample_set][sample_tag].prefetching){
-                        predictor_prefetch->decrease(cache_history_sampler[sample_set][sample_tag].PCval);
-                    }
-                    else{
-                        predictor_demand->decrease(cache_history_sampler[sample_set][sample_tag].PCval);
-                    }
+                    predictor_demand->increase(cache_history_sampler[sample_set][sample_tag].PCval);
                 }
-                optgen_occup_vectorA[set].set_access(currentVal);
             }
-            else
-            {
-                if(!isWrap && optgen_occup_vectorB[set].is_cache(currentVal, previousVal)){
-                    if(cache_history_sampler[sample_set][sample_tag].prefetching){
-                        predictor_prefetch->increase(cache_history_sampler[sample_set][sample_tag].PCval);
-                    }
-                    else{
-                        predictor_demand->increase(cache_history_sampler[sample_set][sample_tag].PCval);
-                    }
+            //Train predictor negatively since OPT did not cache this line
+            else{
+                if(cache_history_sampler[sample_set][sample_tag].prefetching){
+                    predictor_prefetch->decrease(cache_history_sampler[sample_set][sample_tag].PCval);
                 }
-                //Train predictor negatively since OPT did not cache this line
                 else{
-                    if(cache_history_sampler[sample_set][sample_tag].prefetching){
-                        predictor_prefetch->decrease(cache_history_sampler[sample_set][sample_tag].PCval);
-                    }
-                    else{
-                        predictor_demand->decrease(cache_history_sampler[sample_set][sample_tag].PCval);
-                    }
+                    predictor_demand->decrease(cache_history_sampler[sample_set][sample_tag].PCval);
                 }
-                optgen_occup_vectorB[set].set_access(currentVal);
             }
-
+            
+            optgen_occup_vector[set].set_access(currentVal);
             //Update cache history
             update_cache_history(sample_set, cache_history_sampler[sample_set][sample_tag].lru);
 
@@ -290,20 +260,10 @@ void CACHE::llc_update_replacement_state(uint32_t cpu, uint32_t set, uint32_t wa
             //If preftech, mark it as a prefetching or if not, just set the demand access
             if(type == PREFETCH){
                 cache_history_sampler[sample_set][sample_tag].set_prefetch();
-                if ( cpu == 0) {
-                    optgen_occup_vectorA[set].set_prefetch(currentVal);    
-                }
-                else {
-                    optgen_occup_vectorB[set].set_prefetch(currentVal);
-                }
+                optgen_occup_vector[set].set_prefetch(currentVal);
             }
             else{
-                if (cpu == 0){
-                    optgen_occup_vectorA[set].set_access(currentVal);    
-                }
-                else {
-                    optgen_occup_vectorB[set].set_access(currentVal);
-                }
+                optgen_occup_vector[set].set_access(currentVal);
             }
 
             //Update cache history
@@ -313,33 +273,17 @@ void CACHE::llc_update_replacement_state(uint32_t cpu, uint32_t set, uint32_t wa
         else{
             uint64_t previousVal = cache_history_sampler[sample_set][sample_tag].previousVal % OPTGEN_SIZE;
             if(set_timer[set] - cache_history_sampler[sample_set][sample_tag].previousVal < 5*NUM_CORE){
-                if (cpu == 0){
-                    if(optgen_occup_vectorA[set].is_cache(currentVal, previousVal)){
-                        if(cache_history_sampler[sample_set][sample_tag].prefetching){
-                            predictor_prefetch->increase(cache_history_sampler[sample_set][sample_tag].PCval);
-                        }
-                        else{
-                            predictor_demand->increase(cache_history_sampler[sample_set][sample_tag].PCval);
-                        }
+                if(optgen_occup_vector[set].is_cache(currentVal, previousVal)){
+                    if(cache_history_sampler[sample_set][sample_tag].prefetching){
+                        predictor_prefetch->increase(cache_history_sampler[sample_set][sample_tag].PCval);
+                    }
+                    else{
+                        predictor_demand->increase(cache_history_sampler[sample_set][sample_tag].PCval);
                     }
                 }
-                else {
-                    if(optgen_occup_vectorB[set].is_cache(currentVal, previousVal)){
-                        if(cache_history_sampler[sample_set][sample_tag].prefetching){
-                            predictor_prefetch->increase(cache_history_sampler[sample_set][sample_tag].PCval);
-                        }
-                        else{
-                            predictor_demand->increase(cache_history_sampler[sample_set][sample_tag].PCval);
-                        }
-                    }
-                }
-            
             }
             cache_history_sampler[sample_set][sample_tag].set_prefetch();
-            if (cpu == 0)
-                optgen_occup_vectorA[set].set_prefetch(currentVal);
-            else
-                optgen_occup_vectorB[set].set_prefetch(currentVal);
+            optgen_occup_vector[set].set_prefetch(currentVal);
             //Update cache history
             update_cache_history(sample_set, cache_history_sampler[sample_set][sample_tag].lru);
 
@@ -402,22 +346,15 @@ void CACHE::llc_update_replacement_state(uint32_t cpu, uint32_t set, uint32_t wa
 // Use this function to print out your own stats at the end of simulation
 void CACHE::llc_replacement_final_stats()
 {
-    int hitsA = 0, hitsB = 0;
-    int accessA = 0, accessB = 0;
+    int hits = 0;
+    int access = 0;
     for(int i = 0; i < LLC_SETS; i++){
-        hitsA += optgen_occup_vectorA[i].get_optgen_hits();
-        accessA += optgen_occup_vectorA[i].access;
-
-        hitsB += optgen_occup_vectorB[i].get_optgen_hits();
-        accessB += optgen_occup_vectorB[i].access;
+        hits += optgen_occup_vector[i].get_optgen_hits();
+        access += optgen_occup_vector[i].access;
     }
   
-    cout<< "Final OPTGen-1 Hits: " << hitsA << endl;
-    cout<< "Final OPTGen-1 Access: " << accessA << endl;
-    cout<< "Final OPTGEN-1 Hit Rate: " << 100 * ( (double)hitsA/(double)accessA )<< endl;
-
-    cout<< "Final OPTGen-2 Hits: " << hitsB << endl;
-    cout<< "Final OPTGen-2 Access: " << accessB << endl;
-    cout<< "Final OPTGEN-2 Hit Rate: " << 100 * ( (double)hitsB/(double)accessB )<< endl;
+    cout<< "Final OPTGen Hits: " << hits << endl;
+    cout<< "Final OPTGen Access: " << access << endl;
+    cout<< "Final OPTGEN Hit Rate: " << 100 * ( (double)hits/(double)access )<< endl;
  
 }
