@@ -16,7 +16,7 @@ struct OPTgen{
     void init(uint64_t size){
         num_cache = 0;
         access = 0;
-        cache_size = size/2;
+        cache_size = size;
         liveness_intervals.resize(OPTGEN_SIZE, 0);
     }
 
