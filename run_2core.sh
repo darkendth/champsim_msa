@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [ "$#" -lt 6 ] || [ "$#" -gt 7 ]; then
+if [ "$#" -lt 7 ] || [ "$#" -gt 8 ]; then
     echo "Illegal number of parameters"
     echo "Usage: ./run_2core.sh [BINARY] [N_WARM] [N_SIM] [N_MIX] [TRACE0] [TRACE1] [OPTION]"
     exit 1
@@ -11,9 +11,10 @@ BINARY=${1}
 N_WARM=${2}
 N_SIM=${3}
 N_MIX=${4}
-TRACE0=${5}
-TRACE1=${6}
-OPTION=${7}
+R_MIX=${5} # just to rename the output file.
+TRACE0=${6}
+TRACE1=${7}
+OPTION=${8}
 
 # Sanity check
 if [ -z $TRACE_DIR ] || [ ! -d "$TRACE_DIR" ] ; then
@@ -49,4 +50,4 @@ if [ ! -f "$TRACE_DIR/$TRACE1" ] ; then
 fi
 
 mkdir -p results_2core_${N_SIM}M
-(./bin/${BINARY} -warmup_instructions ${N_WARM}000000 -simulation_instructions ${N_SIM}000000 ${OPTION} -traces ${TRACE_DIR}/${TRACE0} ${TRACE_DIR}/${TRACE1}) &> results_2core_${N_SIM}M/mix${N_MIX}-${BINARY}${OPTION}.txt
+(./bin/${BINARY} -warmup_instructions ${N_WARM}000000 -simulation_instructions ${N_SIM}000000 ${OPTION} -traces ${TRACE_DIR}/${TRACE0} ${TRACE_DIR}/${TRACE1}) &> results_2core_${N_SIM}M/mix${N_MIX}-${BINARY}${OPTION}-${R_MIX}.txt
